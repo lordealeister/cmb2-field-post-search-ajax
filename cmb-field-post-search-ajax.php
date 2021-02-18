@@ -1,12 +1,12 @@
 <?php
 /*
 Plugin Name: CMB2 Field Type: Post Search Ajax
-Plugin URI: https://github.com/alexis-magina/cmb2-field-post-search-ajax
-GitHub Plugin URI: https://github.com/alexis-magina/cmb2-field-post-search-ajax
+Plugin URI: https://github.com/lordealeister/cmb2-field-post-search-ajax
+GitHub Plugin URI: https://github.com/lordealeister/cmb2-field-post-search-ajax
 Description: CMB2 field type to attach posts to each others.
 Version: 1.1.5
-Author: Magina
-Author URI: http://magina.fr/
+Author: Lorde Aleister
+Author URI: https://github.com/lordealeister/
 License: GPLv2+
 */
 
@@ -32,18 +32,45 @@ if( ! class_exists( 'MAG_CMB2_Field_Post_Search_Ajax' ) ) {
 		 */
 		public function __construct() {
 			add_action( 'cmb2_render_post_search_ajax', array( $this, 'render' ), 10, 5 );
-			add_action( 'cmb2_sanitize_post_search_ajax', array( $this, 'sanitize' ), 10, 4 );
+			// add_action( 'cmb2_sanitize_post_search_ajax', array( $this, 'sanitize' ), 10, 4 );
 			add_action( 'wp_ajax_cmb_post_search_ajax_get_results', array( $this, 'cmb_post_search_ajax_get_results' ) );
 		}
 
 		/**
 		 * Render field
 		 */
-		public function render( $field, $value, $object_id, $object_type, $field_type ) {	
-			$this->setup_admin_scripts();
-			$field_name = $field->_name();
+		public function render( $field, $value, $object_id, $object_type, $field_type ) { 
+			$this->setup_admin_scripts(); 
+			$field_name = $field->_name(); 
+			$field_id = $field->id();
 
-			if($field->args( 'limit' ) > 1){
+			$field_value = '';
+			if(empty($field->args('limit')) || $field->args('limit') == 1):
+				if(is_array($value))
+					$value = $value[0];
+					
+				if($field->args('object_type') == 'user')
+					$field_value = ($value ? get_userdata($value)->display_name : '');
+				else
+					$field_value = ($value ? get_the_title($value) : '');
+			endif;
+
+			echo $field_type->input(array( 
+				'type' 			=> 'text',
+				'name' 			=> $field_name,
+				'id'			=> $field_id,
+				'class'			=> 'cmb-post-search-ajax',
+				'value' 		=> $field_value,
+				'desc'			=> false,
+				'data-limit'	=> $field->args('limit') ? $field->args('limit') : '1',
+				'data-sortable'	=> $field->args('sortable') ? $field->args('sortable') : '0',
+				'data-object'	=> $field->args('object_type') ? $field->args('object_type') : 'post',
+				'data-queryargs'=> $field->args('query_args') ? htmlspecialchars(json_encode($field->args('query_args')), ENT_QUOTES, 'UTF-8') : '',
+			));
+
+			echo '<img src="' . admin_url('images/spinner.gif') . '" class="cmb-post-search-ajax-spinner" />';
+
+			if($field->args('limit') > 1):
 				echo '<ul class="cmb-post-search-ajax-results" id="' . $field_name . '_results">';
 				if( isset($value) && !empty($value) ){
 					if( !is_array($value) ){ $value = array($value); }
@@ -62,56 +89,31 @@ if( ! class_exists( 'MAG_CMB2_Field_Post_Search_Ajax' ) ) {
 					}
 				}
 				echo '</ul>';			
-				$field_value = '';
-			}
-			else{
-				if(is_array($value)){ $value = $value[0]; }
-				if( $field->args( 'object_type' ) == 'user' ){
-					$field_value = ($value ? get_userdata($value)->display_name : '');
-				}
-				else{
-					$field_value = ($value ? get_the_title($value) : '');
-				}
-				echo $field_type->input( array( 
+			else:
+				echo $field_type->input(array( 
 					'type' 	=> 'hidden',
-					'name' 	=> $field_name . '_results',
+					'name' 	=> $field_name,
 					'value' => $value,
 					'desc'	=> false
-				) );
-			}
+				));
+			endif;
 
-			echo $field_type->input( array( 
-				'type' 			=> 'text',
-				'name' 			=> $field_name,
-				'id'			=> $field_name,
-				'class'			=> 'cmb-post-search-ajax',
-				'value' 		=> $field_value,
-				'desc'			=> false,
-				'data-limit'	=> $field->args( 'limit' ) ? $field->args( 'limit' ) : '1',
-				'data-sortable'	=> $field->args( 'sortable' ) ? $field->args( 'sortable' ) : '0',
-				'data-object'	=> $field->args( 'object_type' ) ? $field->args( 'object_type' ) : 'post',
-				'data-queryargs'=> $field->args( 'query_args' ) ? htmlspecialchars( json_encode( $field->args( 'query_args' ) ), ENT_QUOTES, 'UTF-8' ) : ''
-			) );
-
-			echo '<img src="'.admin_url( 'images/spinner.gif' ).'" class="cmb-post-search-ajax-spinner" />';		
-
-			$field_type->_desc( true, true );
-
+			$field_type->_desc(true, true);
 		}
 
 		/**
 		 * Optionally save the latitude/longitude values into two custom fields
 		 */
-		public function sanitize( $override_value, $value, $object_id, $field_args ) {
-			$fid = $field_args['id'];
-			if( !empty( $field_args['render_row_cb'][0]->data_to_save[$fid.'_results'] ) ){
-				$value = $field_args['render_row_cb'][0]->data_to_save[$fid.'_results'];
-			}
-			else{
-				$value = false;
-			}
-			return $value;
-		}
+		// public function sanitize($override_value, $value, $object_id, $field_args) {
+		// 	$fid = $field_args['id'];
+
+		// 	if(!empty($field_args['render_row_cb'][0]->data_to_save[$fid]))
+		// 		$value = $field_args['render_row_cb'][0]->data_to_save[$fid];
+		// 	else
+		// 		$value = false;
+
+		// 	return $value;
+		// }
 
 		/**
 		 * Defines the url which is used to load local resources. Based on, and uses, 
@@ -185,6 +187,7 @@ if( ! class_exists( 'MAG_CMB2_Field_Post_Search_Ajax' ) ) {
 					}
 				}else{
 					$results 	= new WP_Query( $args );
+					
 					if ( $results->have_posts() ) :
 						while ( $results->have_posts() ) : $results->the_post();
 							// Define filter "mag_cmb_post_search_ajax_result" to allow customize ajax results.
