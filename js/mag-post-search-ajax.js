@@ -41,6 +41,7 @@
 					},
 					onSearchStart: function(){
 						$(this).next('img.cmb-post-search-ajax-spinner').css('display', 'inline-block');
+						$('.autocomplete-suggestions').appendTo($(this).parent());
 					},
 					onSearchComplete: function(){
 						$(this).next('img.cmb-post-search-ajax-spinner').hide();
